@@ -30,6 +30,25 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 with app.app_context():
     db.create_all()
+    # Add migration to add 'order' column if it doesn't exist
+    from sqlalchemy import text, inspect
+    inspector = inspect(db.engine)
+    user_columns = [col['name'] for col in inspector.get_columns('user')]
+    if 'order' not in user_columns:
+        try:
+            db.session.execute(text('ALTER TABLE "user" ADD COLUMN "order" INTEGER DEFAULT 0'))
+            db.session.commit()
+        except Exception as e:
+            print(f"Migration warning: {e}")
+    
+    # Add migration to add 'emoji' column if it doesn't exist
+    note_columns = [col['name'] for col in inspector.get_columns('note')]
+    if 'emoji' not in note_columns:
+        try:
+            db.session.execute(text('ALTER TABLE "note" ADD COLUMN "emoji" VARCHAR(10) DEFAULT \'🟥\''))
+            db.session.commit()
+        except Exception as e:
+            print(f"Migration warning: {e}")
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')

@@ -65,6 +65,7 @@ def create_note():
             tags=data.get('tags'),
             event_date=event_date,
             event_time=event_time,
+            emoji=data.get('emoji', '🟥'),
             user_id=user_id
         )
         db.session.add(note)
@@ -95,6 +96,7 @@ def update_note(note_id):
         note.title = data.get('title', note.title)
         note.content = data.get('content', note.content)
         note.tags = data.get('tags', note.tags)
+        note.emoji = data.get('emoji', note.emoji)
 
         # 處理日期
         if 'event_date' in data:

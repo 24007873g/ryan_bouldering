@@ -68,11 +68,22 @@
             cursor: pointer;
             transition: all 0.2s ease;
             background: #f8f9fa;
+            draggable: true;
         }
 
         .user-item.active {
             border: 2px solid #667eea;
             background: linear-gradient(135deg, rgba(102, 126, 234, 0.06) 0%, rgba(118, 75, 162, 0.06) 100%);
+        }
+
+        .user-item.dragging {
+            opacity: 0.5;
+            background: #e1e5e9;
+        }
+
+        .user-item.over {
+            border-top: 2px solid #667eea;
+            padding-top: 8px;
         }
 
         .sidebar {
@@ -297,6 +308,41 @@
             background: #5a6268;
             transform: translateY(-1px);
         }
+        
+        .emoji-picker {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        
+        .emoji-btn {
+            width: 44px;
+            height: 44px;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            font-size: 24px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .emoji-btn:hover {
+            background: #e1e5e9;
+            transform: scale(1.1);
+        }
+        
+        .emoji-btn.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            box-shadow: 0 0 8px rgba(102, 126, 234, 0.3);
+        }
+        
         .form-group {
             margin-bottom: 20px;
         }
@@ -482,13 +528,29 @@
                     <div class="form-group">
                         <label class="form-label" for="noteContent">Content</label>
                         <textarea class="form-textarea" id="noteContent" placeholder="Start writing your note..."></textarea>
-                        <button class="btn btn-revert" id="revertBtn">↩️ Revert</button> <!-- 新增 -->
+                        <button class="btn btn-revert" id="revertBtn">↩️ Revert</button>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Color Tag</label>
+                        <div class="emoji-picker" id="emojiPicker">
+                            <button type="button" class="emoji-btn" data-emoji="🟥">🟥</button>
+                            <button type="button" class="emoji-btn" data-emoji="🟧">🟧</button>
+                            <button type="button" class="emoji-btn" data-emoji="🟨">🟨</button>
+                            <button type="button" class="emoji-btn" data-emoji="🟩">🟩</button>
+                            <button type="button" class="emoji-btn" data-emoji="🟦">🟦</button>
+                            <button type="button" class="emoji-btn" data-emoji="🟪">🟪</button>
+                            <button type="button" class="emoji-btn" data-emoji="🟫">🟫</button>
+                            <button type="button" class="emoji-btn" data-emoji="⬛">⬛</button>
+                            <button type="button" class="emoji-btn" data-emoji="⬜">⬜</button>
+                        </div>
                     </div>
                 </div>
 
                 <div class="empty-state" id="emptyState">
                     <h3>Welcome!</h3>
                     <p>Select an existing record or create a new one to get started.</p>
+                </div>
                 </div>
             </div>
         </div>
@@ -519,6 +581,15 @@
                 document.getElementById('deleteBtn').addEventListener('click', () => this.deleteNote());
                 document.getElementById('searchBox').addEventListener('input', (e) => this.searchNotes(e.target.value));
                 document.getElementById('revertBtn').addEventListener('click', () => this.revertContent()); // 新增
+                
+                // Emoji picker events
+                Array.from(document.querySelectorAll('.emoji-btn')).forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        this.selectEmoji(btn.dataset.emoji);
+                    });
+                });
+                
                 // Auto-save on content change (debounced)
                 let saveTimeout;
                 const autoSave = () => {
@@ -565,7 +636,7 @@
                          data-note-id="${note.id}"
                          draggable="true">
                         <div class="note-header">
-                            <div class="note-title">${this.escapeHtml(note.title || 'Untitled')}</div>
+                            <div class="note-title">${note.emoji || '🟥'} ${this.escapeHtml(note.title || 'Untitled')}</div>
                             <div class="note-meta">${this.formatDate(note.updated_at)}</div>
                         </div>
                         <div class="note-preview">${this.escapeHtml(note.content || 'No content')}</div>
@@ -633,6 +704,51 @@
                 });
             }
 
+            enableUserDragAndDrop() {
+                const usersList = document.getElementById('usersList');
+                let dragSrcEl = null;
+                Array.from(usersList.children).forEach(item => {
+                    if (!item.classList.contains('user-item')) return;
+                    
+                    item.addEventListener('dragstart', function(e) {
+                        dragSrcEl = this;
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/html', this.outerHTML);
+                        this.classList.add('dragging');
+                    });
+                    item.addEventListener('dragover', function(e) {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                    });
+                    item.addEventListener('dragenter', function() {
+                        this.classList.add('over');
+                    });
+                    item.addEventListener('dragleave', function() {
+                        this.classList.remove('over');
+                    });
+                    item.addEventListener('drop', (e) => {
+                        e.stopPropagation();
+                        if (dragSrcEl !== item) {
+                            const srcIndex = Array.from(usersList.children).indexOf(dragSrcEl);
+                            const tgtIndex = Array.from(usersList.children).indexOf(item);
+                            if (srcIndex > -1 && tgtIndex > -1) {
+                                // Swap users array
+                                const temp = this.users[srcIndex];
+                                this.users[srcIndex] = this.users[tgtIndex];
+                                this.users[tgtIndex] = temp;
+                                this.renderUsersList();
+                                this.updateUserOrderOnServer();
+                            }
+                        }
+                        return false;
+                    });
+                    item.addEventListener('dragend', function() {
+                        this.classList.remove('dragging');
+                        Array.from(usersList.children).forEach(i => i.classList.remove('over'));
+                    });
+                });
+            }
+
             async selectNote(noteId) {
                 const note = this.notes.find(n => n.id === noteId);
                 if (!note) return;
@@ -648,6 +764,29 @@
                 document.getElementById('noteEventDate').value = note.event_date || '';
                 document.getElementById('noteEventTime').value = note.event_time || '';
                 document.getElementById('editorTitle').textContent = note.title || 'Untitled Note';
+                
+                // Update emoji selection
+                this.updateEmojiSelection(note.emoji || '🟥');
+            }
+
+            selectEmoji(emoji) {
+                if (this.currentNote) {
+                    this.currentNote.emoji = emoji;
+                    this.updateEmojiSelection(emoji);
+                    // Only auto-save if note has been created
+                    if (this.currentNote.id) {
+                        this.saveNote(true);
+                    }
+                }
+            }
+
+            updateEmojiSelection(emoji) {
+                Array.from(document.querySelectorAll('.emoji-btn')).forEach(btn => {
+                    btn.classList.remove('selected');
+                    if (btn.dataset.emoji === emoji) {
+                        btn.classList.add('selected');
+                    }
+                });
             }
 
             createNewNote() {
@@ -664,6 +803,7 @@
                     tags: '',
                     event_date: null,
                     event_time: null,
+                    emoji: '🟥',
                     user_id: this.selectedUserId,
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
@@ -675,6 +815,7 @@
                 document.getElementById('noteTags').value = '';
                 document.getElementById('noteEventDate').value = '';
                 document.getElementById('noteEventTime').value = '';
+                this.updateEmojiSelection('🟥');
                 document.getElementById('editorTitle').textContent = 'New Note';
                 document.getElementById('noteTitle').focus();
                 
@@ -724,6 +865,7 @@
                     tags: tags,
                     event_date: eventDate,
                     event_time: eventTime,
+                    emoji: this.currentNote.emoji || '🟥',
                     user_id: this.currentNote.user_id || this.selectedUserId
                 };
 
@@ -818,7 +960,7 @@
                     <div class="note-item ${this.currentNote && this.currentNote.id === note.id ? 'active' : ''}" 
                          data-note-id="${note.id}" onclick="noteTaker.selectNote(${note.id})">
                         <div class="note-header">
-                            <div class="note-title">${this.escapeHtml(note.title || 'Untitled')}</div>
+                            <div class="note-title">${note.emoji || '🟥'} ${this.escapeHtml(note.title || 'Untitled')}</div>
                             <div class="note-meta">${this.formatDate(note.updated_at)}</div>
                         </div>
                         <div class="note-preview">${this.escapeHtml(note.content || 'No content')}</div>
@@ -890,6 +1032,23 @@
                 }
             }
 
+            async updateUserOrderOnServer() {
+                // Get the current sorted user id array
+                const userIds = this.users.map(user => user.id);
+                try {
+                    const response = await fetch('/api/users/order', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ user_ids: userIds })
+                    });
+                    if (!response.ok) throw new Error('Failed to update user order');
+                    // Optional: show success message
+                    this.showMessage('User order synced', 'success');
+                } catch (error) {
+                    this.showMessage(`Failed to sync user order: ${error.message}`, 'error');
+                }
+            }
+
             // --- User management ---
             async loadUsers() {
                 try {
@@ -910,7 +1069,7 @@
                     return;
                 }
                 el.innerHTML = this.users.map(u => `
-                    <div class="user-item ${this.selectedUserId === u.id ? 'active' : ''}" data-user-id="${u.id}">
+                    <div class="user-item ${this.selectedUserId === u.id ? 'active' : ''}" data-user-id="${u.id}" draggable="true">
                         <span class="user-name">${this.escapeHtml(u.username)}</span>
                         <div style="float:right;">
                             <button class="btn" data-action="edit" data-user-id="${u.id}">✏️</button>
@@ -936,6 +1095,9 @@
                         if (action === 'delete') this.deleteUser(id);
                     });
                 });
+
+                // Enable drag and drop for users
+                this.enableUserDragAndDrop();
             }
 
             async selectUser(userId) {
