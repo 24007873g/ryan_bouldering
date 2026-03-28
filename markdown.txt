@@ -1,0 +1,234 @@
+讓我更新這個 Markdown，加入筆記列表中標籤顯示的相關修改：
+
+# 筆記應用程式更新：新增可選欄位
+## 功能更新摘要
+在這次更新中，我們為筆記應用程式添加了三個新的可選欄位：
+- 標籤 (Tags)
+- 事件日期 (Event Date)
+- 事件時間 (Event Time)
+
+## 1. 資料庫更新
+### 在 `Note` 模型中新增欄位
+```python
+class Note(db.Model):
+    # 原有欄位
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    
+    # 新增欄位
+    tags = db.Column(db.String(500), nullable=True)      # 以逗號分隔的標籤字串
+    event_date = db.Column(db.Date, nullable=True)       # 事件日期
+    event_time = db.Column(db.Time, nullable=True)       # 事件時間
+```
+
+## 2. 後端 API 更新
+### 修改筆記路由
+```python
+@note_bp.route('/notes', methods=['POST'])
+def create_note():
+    try:
+        data = request.json
+        # 處理日期和時間字符串
+        event_date = None
+        if data.get('event_date'):
+            event_date = datetime.strptime(data['event_date'], '%Y-%m-%d').date()
+            
+        event_time = None
+        if data.get('event_time'):
+            event_time = datetime.strptime(data['event_time'], '%H:%M').time()
+
+        note = Note(
+            title=data['title'],
+            content=data['content'],
+            tags=data.get('tags'),
+            event_date=event_date,
+            event_time=event_time
+        )
+```
+
+## 3. 前端界面更新
+### 新增表單欄位
+```html
+<div id="editorForm">
+    <!-- 原有欄位 -->
+    <div class="form-group">
+        <label class="form-label" for="noteTitle">Title</label>
+        <input type="text" class="form-input" id="noteTitle">
+    </div>
+
+    <!-- 新增欄位 -->
+    <div class="form-group">
+        <label class="form-label" for="noteTags">Tags (comma separated)</label>
+        <input type="text" class="form-input" id="noteTags">
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="noteEventDate">Event Date</label>
+        <input type="date" class="form-input" id="noteEventDate">
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="noteEventTime">Event Time</label>
+        <input type="time" class="form-input" id="noteEventTime">
+    </div>
+</div>
+```
+
+### 新增 CSS 樣式
+```css
+.note-footer {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.note-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.tag {
+    display: inline-block;
+    padding: 2px 8px;
+    background-color: #e8eaf6;
+    color: #667eea;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.event-date {
+    display: inline-block;
+    padding: 2px 8px;
+    background-color: #e8f5e9;
+    color: #28a745;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+```
+
+### 筆記列表顯示更新
+```javascript
+renderNotesList() {
+    const notesList = document.getElementById('notesList');
+    
+    if (this.notes.length === 0) {
+        notesList.innerHTML = '<div class="empty-state"><p>No notes yet. Create your first note!</p></div>';
+        return;
+    }
+
+    notesList.innerHTML = this.notes.map(note => `
+        <div class="note-item ${this.currentNote && this.currentNote.id === note.id ? 'active' : ''}" 
+             data-note-id="${note.id}" onclick="noteTaker.selectNote(${note.id})">
+            <div class="note-header">
+                <div class="note-title">${this.escapeHtml(note.title || 'Untitled')}</div>
+                <div class="note-meta">${this.formatDate(note.updated_at)}</div>
+            </div>
+            <div class="note-preview">${this.escapeHtml(note.content || 'No content')}</div>
+            <div class="note-footer">
+                ${Array.isArray(note.tags) && note.tags.length > 0 ? 
+                    `<div class="note-tags">${note.tags.map(tag => 
+                        `<span class="tag">#${this.escapeHtml(tag)}</span>`
+                    ).join(' ')}</div>` 
+                    : ''}
+                ${note.event_date ? `<div class="note-event">${this.formatEventDateTime(note.event_date, note.event_time)}</div>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+```
+
+### JavaScript 功能更新
+1. 格式化輔助函數：
+```javascript
+formatTags(tags) {
+    if (!tags || typeof tags !== 'string') return '';
+    return tags.split(',')
+        .map(tag => tag.trim())
+        .filter(tag => tag)
+        .map(tag => `<span class="tag">#${this.escapeHtml(tag)}</span>`)
+        .join(' ');
+}
+
+formatEventDateTime(date, time) {
+    if (!date) return '';
+    const eventDate = new Date(date);
+    const formattedDate = eventDate.toLocaleDateString();
+    return `<span class="event-date">📅 ${formattedDate}${time ? ` ⏰ ${time}` : ''}</span>`;
+}
+```
+
+2. 更新筆記選擇功能：
+```javascript
+async selectNote(noteId) {
+    const note = this.notes.find(n => n.id === noteId);
+    if (!note) return;
+
+    this.currentNote = note;
+    this.showEditor();
+    this.renderNotesList();
+    
+    document.getElementById('noteTitle').value = note.title || '';
+    document.getElementById('noteContent').value = note.content || '';
+    document.getElementById('noteTags').value = Array.isArray(note.tags) ? note.tags.join(', ') : '';
+    document.getElementById('noteEventDate').value = note.event_date || '';
+    document.getElementById('noteEventTime').value = note.event_time || '';
+    document.getElementById('editorTitle').textContent = note.title || 'Untitled Note';
+}
+```
+
+3. 保存功能更新：
+```javascript
+async saveNote() {
+    const noteData = {
+        title: title || 'Untitled',
+        content: content,
+        tags: tags || null,
+        event_date: eventDate || null,
+        event_time: eventTime || null
+    };
+}
+```
+
+## 使用方法
+1. **添加標籤**
+   - 在標籤欄位中輸入標籤
+   - 多個標籤用逗號分隔
+   - 例如：`work, urgent, meeting`
+   - 標籤會在筆記列表中以藍色小標籤形式顯示
+
+2. **設置事件日期**
+   - 使用日期選擇器選擇日期
+   - 可以為空（可選欄位）
+   - 在筆記列表中以綠色標籤顯示，包含日曆圖示
+
+3. **設置事件時間**
+   - 使用時間選擇器選擇時間
+   - 可以為空（可選欄位）
+   - 在筆記列表中與日期一起顯示，包含時鐘圖示
+
+## 顯示效果
+- **標籤顯示**：
+  - 每個標籤前面有 "#" 符號
+  - 藍色背景，圓角設計
+  - 多個標籤並排顯示，自動換行
+- **日期和時間**：
+  - 綠色背景，圓角設計
+  - 包含表情符號提示（📅 日期，⏰ 時間）
+  - 顯示在標籤下方
+- **整體布局**：
+  - 標籤和事件信息位於筆記卡片底部
+  - 清晰的層次結構
+  - 響應式設計，適應不同螢幕大小
+
+## 注意事項
+- 所有新增的欄位都是可選的
+- 標籤使用逗號分隔，會自動處理空格
+- 日期和時間格式會自動標準化
+- 支持編輯現有筆記的所有欄位
+- 資料會自動保存在資料庫中
+- 標籤和日期時間在列表視圖中清晰可見
