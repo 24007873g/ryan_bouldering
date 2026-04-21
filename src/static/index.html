@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NoteTaker - Your Personal Note Manager</title>
+    <title>Ryan's Personal Note Manager</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <style>
         * {
@@ -469,17 +469,17 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>📝 AntiGravity Records</h1>
-            <p>We are here to kill not to make friends</p>
+            <h1>📝 Ryan's Records</h1>
+            <p>Keep track of my tasks</p>
         </div>
 
         <div class="main-content">
             <div class="users-column" id="usersColumn">
                 <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-                    <button class="new-note-btn" id="newUserBtn">➕ New User</button>
+                    <button class="new-note-btn" id="newUserBtn">➕ New Category</button>
                 </div>
                 <div id="usersList">
-                    <div class="loading">Loading users...</div>
+                    <div class="loading">Loading category...</div>
                 </div>
             </div>
 
@@ -792,7 +792,7 @@
             createNewNote() {
                 this.originalContent = null;// 清除原始內容暫存
                 if (!this.selectedUserId) {
-                    this.showMessage('Please select or create a user first.', 'error');
+                    this.showMessage('Please select or create a category first.', 'error');
                     return;
                 }
 
@@ -1041,11 +1041,11 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ user_ids: userIds })
                     });
-                    if (!response.ok) throw new Error('Failed to update user order');
+                    if (!response.ok) throw new Error('Failed to update category order');
                     // Optional: show success message
-                    this.showMessage('User order synced', 'success');
+                    this.showMessage('Category order synced', 'success');
                 } catch (error) {
-                    this.showMessage(`Failed to sync user order: ${error.message}`, 'error');
+                    this.showMessage(`Failed to sync category order: ${error.message}`, 'error');
                 }
             }
 
@@ -1053,19 +1053,19 @@
             async loadUsers() {
                 try {
                     const res = await fetch('/api/users');
-                    if (!res.ok) throw new Error('Failed to load users');
+                    if (!res.ok) throw new Error('Failed to load categories');
                     this.users = await res.json();
                     this.renderUsersList();
                 } catch (e) {
                     console.error(e);
-                    document.getElementById('usersList').innerHTML = '<div class="empty-state"><p>Unable to load users.</p></div>';
+                    document.getElementById('usersList').innerHTML = '<div class="empty-state"><p>Unable to load categories.</p></div>';
                 }
             }
 
             renderUsersList() {
                 const el = document.getElementById('usersList');
                 if (!this.users || this.users.length === 0) {
-                    el.innerHTML = '<div class="empty-state"><p>No users yet.</p></div>';
+                    el.innerHTML = '<div class="empty-state"><p>No inputs yet.</p></div>';
                     return;
                 }
                 el.innerHTML = this.users.map(u => `
@@ -1108,7 +1108,7 @@
             }
 
             async createUserPrompt() {
-                const name = prompt('Enter user name (display name):');
+                const name = prompt('Enter category name (display name):');
                 if (!name) return;
                 try {
                     const res = await fetch('/api/users', {
@@ -1120,14 +1120,14 @@
                     await this.loadUsers();
                     this.showMessage('User created', 'success');
                 } catch (e) {
-                    this.showMessage(`Create user failed: ${e.message}`, 'error');
+                    this.showMessage(`Create category failed: ${e.message}`, 'error');
                 }
             }
 
             async editUserPrompt(userId) {
                 const user = this.users.find(u => u.id === userId);
                 if (!user) return;
-                const name = prompt('Edit user name:', user.username);
+                const name = prompt('Edit category name:', user.username);
                 if (!name) return;
                 try {
                     const res = await fetch(`/api/users/${userId}`, {
@@ -1135,26 +1135,26 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ username: name })
                     });
-                    if (!res.ok) throw new Error('Failed to update user');
+                    if (!res.ok) throw new Error('Failed to update category');
                     await this.loadUsers();
-                    this.showMessage('User updated', 'success');
+                    this.showMessage('Category updated', 'success');
                 } catch (e) {
-                    this.showMessage(`Update user failed: ${e.message}`, 'error');
+                    this.showMessage(`Update category failed: ${e.message}`, 'error');
                 }
             }
 
             async deleteUser(userId) {
-                if (!confirm('Delete this user and all their notes?')) return;
+                if (!confirm('Delete this category and all their notes?')) return;
                 try {
                     const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
-                    if (!res.ok) throw new Error('Failed to delete user');
+                    if (!res.ok) throw new Error('Failed to delete category');
                     // if deleted user was selected, clear selection
                     if (this.selectedUserId === userId) this.selectedUserId = null;
                     await this.loadUsers();
                     await this.loadNotes();
-                    this.showMessage('User deleted', 'success');
+                    this.showMessage('Category deleted', 'success');
                 } catch (e) {
-                    this.showMessage(`Delete user failed: ${e.message}`, 'error');
+                    this.showMessage(`Delete category failed: ${e.message}`, 'error');
                 }
             }
         }
